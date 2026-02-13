@@ -1,14 +1,19 @@
 // /static/app.js
 const $ = (sel) => document.querySelector(sel);
-const SIDEBAR_COLLAPSED_KEY = "openstoryline_sidebar_collapsed";
-const DEVBAR_COLLAPSED_KEY = "openstoryline_devbar_collapsed";
+const SIDEBAR_COLLAPSED_KEY = "kokomo_sidebar_collapsed";
+const SIDEBAR_COLLAPSED_KEY_LEGACY = "openstoryline_sidebar_collapsed";
+const DEVBAR_COLLAPSED_KEY = "kokomo_devbar_collapsed";
+const DEVBAR_COLLAPSED_KEY_LEGACY = "openstoryline_devbar_collapsed";
+const SESSION_STORAGE_KEY = "kokomo_session_id";
+const SESSION_STORAGE_KEY_LEGACY = "openstoryline_session_id";
 const AUDIO_PREVIEW_MAX = 3;
 const CUSTOM_MODEL_KEY = "__custom__";
 
 // =========================================================
 // i18n (zh/en) + lang persistence
 // =========================================================
-const __OS_LANG_STORAGE_KEY = "openstoryline_lang_v1";
+const __OS_LANG_STORAGE_KEY = "kokomo_lang_v1";
+const __OS_LANG_STORAGE_KEY_LEGACY = "openstoryline_lang_v1";
 
 const QUICK_PROMPTS = [
   { zh: "详细介绍一下你能做什么", en: "Please describe in detail what you can do." },
@@ -81,7 +86,7 @@ const __OS_I18N = {
     "sidebar.help.cta": "点击查看配置教程",
     "sidebar.help.llm": "LLM 主要用于对话，在工具内部也被用来生成文案/分组/选择BGM等。",
     "sidebar.help.vlm": "VLM 用于素材理解（图像/视频理解）。自定义时请确认模型支持多模态输入。",
-    "sidebar.help.pexels": "Pexels 用于搜索网络素材。免责声明：OpenStoryline 搜索的网络素材均来自Pexels，通过Pexels下载的素材仅用于体验Open-Storyline剪辑效果，不允许再分发或出售。我们只提供工具，所有通过本工具下载和使用的素材（如 Pexels 图像）都由用户自行通过 API 获取，我们不对用户生成的视频内容、素材的合法性或因使用本工具导致的任何版权/肖像权纠纷承担责任。使用时请遵循 Pexels 的许可协议。",
+    "sidebar.help.pexels": "Pexels 用于搜索网络素材。免责声明：Kokomo 搜索的网络素材均来自 Pexels，通过 Pexels 下载的素材仅用于体验 Kokomo 剪辑效果，不允许再分发或出售。我们只提供工具，所有通过本工具下载和使用的素材（如 Pexels 图像）都由用户自行通过 API 获取，我们不对用户生成的视频内容、素材的合法性或因使用本工具导致的任何版权/肖像权纠纷承担责任。使用时请遵循 Pexels 的许可协议。",
     "sidebar.help.tts": "用于从文案生成配音。",
     "sidebar.help.pexels_home_link": "点击进入 Pexels 官方网站",
     "sidebar.help.pexels_terms_link": "查看 Pexels 用户协议",
@@ -188,7 +193,7 @@ const __OS_I18N = {
     "sidebar.help.cta": "Click to view the configuration guide",
     "sidebar.help.llm": "LLM is used for chat/copywriting.",
     "sidebar.help.vlm": "VLM is used for media understanding (image/video).",
-    "sidebar.help.pexels": "Pexels is used for media search. Disclaimer: The online content searched by OpenStoryline is all from Pexels. Footage downloaded via Pexels is for the sole purpose of experiencing Open-Storyline editing effects and may not be redistributed or sold. We only provide the tool. All materials downloaded and used through this tool (such as Pexels images) are obtained by the user through the API. We are not responsible for the legality of user-generated video content or materials, or for any copyright/portrait rights disputes arising from the use of this tool. Please comply with the Pexels license agreement when using it.",
+    "sidebar.help.pexels": "Pexels is used for media search. Disclaimer: Online content searched by Kokomo comes from Pexels. Footage downloaded via Pexels is only for experiencing Kokomo editing effects and may not be redistributed or sold. We only provide the tool. All materials downloaded and used through this tool (such as Pexels images) are obtained by users through their own API access. We are not responsible for the legality of user-generated content or any copyright/portrait-right disputes arising from usage. Please comply with the Pexels license agreement.",
     "sidebar.help.tts": "TTS is used to generate voiceover from text.",
     "sidebar.help.pexels_home_link": "Visit the official Pexels website",
     "sidebar.help.pexels_terms_link": "View Pexels Terms",
@@ -241,17 +246,56 @@ function __osNormLang(x) {
   return "zh";
 }
 
-function __osLoadLang() {
+function __osGetStorageWithLegacy(storage, key, legacyKey) {
   try {
-    const v = localStorage.getItem(__OS_LANG_STORAGE_KEY);
-    return v ? __osNormLang(v) : null;
+    const value = storage.getItem(key);
+    if (value != null) return value;
+    if (!legacyKey) return null;
+    const legacyValue = storage.getItem(legacyKey);
+    if (legacyValue != null) {
+      storage.setItem(key, legacyValue);
+      storage.removeItem(legacyKey);
+      return legacyValue;
+    }
   } catch {
     return null;
   }
+  return null;
+}
+
+function __osSetStorageWithLegacyCleanup(storage, key, value, legacyKey) {
+  try {
+    storage.setItem(key, value);
+    if (legacyKey) storage.removeItem(legacyKey);
+  } catch {}
+}
+
+function __osCurrentLang() {
+  return __osNormLang(window.KOKOMO_LANG || window.OPENSTORYLINE_LANG || "zh");
+}
+
+function __osLoadLang() {
+  const v = __osGetStorageWithLegacy(localStorage, __OS_LANG_STORAGE_KEY, __OS_LANG_STORAGE_KEY_LEGACY);
+  return v ? __osNormLang(v) : null;
 }
 
 function __osSaveLang(lang) {
-  try { localStorage.setItem(__OS_LANG_STORAGE_KEY, lang); } catch {}
+  __osSetStorageWithLegacyCleanup(localStorage, __OS_LANG_STORAGE_KEY, lang, __OS_LANG_STORAGE_KEY_LEGACY);
+}
+
+function __osLoadSessionId() {
+  return __osGetStorageWithLegacy(localStorage, SESSION_STORAGE_KEY, SESSION_STORAGE_KEY_LEGACY);
+}
+
+function __osSaveSessionId(sessionId) {
+  __osSetStorageWithLegacyCleanup(localStorage, SESSION_STORAGE_KEY, sessionId, SESSION_STORAGE_KEY_LEGACY);
+}
+
+function __osClearSessionId() {
+  try {
+    localStorage.removeItem(SESSION_STORAGE_KEY);
+    localStorage.removeItem(SESSION_STORAGE_KEY_LEGACY);
+  } catch {}
 }
 
 function __osFormat(tpl, vars) {
@@ -263,7 +307,7 @@ function __osFormat(tpl, vars) {
 }
 
 function __t(key, vars) {
-  const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+  const lang = __osCurrentLang();
   const table = __OS_I18N[lang] || __OS_I18N.zh;
   const raw = (table && table[key] != null) ? table[key] : (__OS_I18N.zh[key] ?? key);
   return __osFormat(raw, vars);
@@ -308,7 +352,7 @@ function __rerenderTtsFieldPlaceholders(root = document) {
 }
 
 function __osApplyHelpLinks(root = document) {
-  const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+  const lang = __osCurrentLang();
   const nodes = (root || document).querySelectorAll(".sidebar-help[data-help-zh], .sidebar-help[data-help-en]");
 
   nodes.forEach((a) => {
@@ -320,7 +364,7 @@ function __osApplyHelpLinks(root = document) {
 }
 
 function __osApplyTooltipLinks(root = document) {
-  const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+  const lang = __osCurrentLang();
 
   const nodes = (root || document).querySelectorAll(
     ".sidebar-help-tooltip-link[data-terms-zh], .sidebar-help-tooltip-link[data-terms-en], " +
@@ -401,7 +445,7 @@ function __osAppendToCurrentUrl(suffix) {
 }
 
 function __osApplyTopbarLinks(root = document) {
-  const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+  const lang = __osCurrentLang();
   const nodes = (root || document).querySelectorAll(
     ".topbar-link[data-link-zh], .topbar-link[data-link-en], .topbar-link[data-link-suffix], .topbar-link[data-link-suffix-zh], .topbar-link[data-link-suffix-en]"
   );
@@ -430,6 +474,7 @@ function __osApplyTopbarLinks(root = document) {
 
 function __applyLang(lang, { persist = true } = {}) {
   const v = __osNormLang(lang);
+  window.KOKOMO_LANG = v;
   window.OPENSTORYLINE_LANG = v;
 
   if (persist) __osSaveLang(v);
@@ -664,7 +709,7 @@ class WsClient {
 
       // session 不存在就不要重连
       if (ev && ev.code === 4404) {
-      localStorage.removeItem("openstoryline_session_id");
+      __osClearSessionId();
       location.reload();
       return;
       }
@@ -1125,18 +1170,22 @@ class ChatUI {
   }
 
   _loadToolUiConfig() {
-    const cfg = (window.OPENSTORYLINE_TOOL_UI && typeof window.OPENSTORYLINE_TOOL_UI === "object")
+    const cfg = (window.KOKOMO_TOOL_UI && typeof window.KOKOMO_TOOL_UI === "object")
+      ? window.KOKOMO_TOOL_UI
+      : (window.OPENSTORYLINE_TOOL_UI && typeof window.OPENSTORYLINE_TOOL_UI === "object")
       ? window.OPENSTORYLINE_TOOL_UI
       : {};
 
     const labels =
       (cfg.labels && typeof cfg.labels === "object") ? cfg.labels :
+      (window.KOKOMO_TOOL_LABELS && typeof window.KOKOMO_TOOL_LABELS === "object") ? window.KOKOMO_TOOL_LABELS :
       (window.OPENSTORYLINE_TOOL_LABELS && typeof window.OPENSTORYLINE_TOOL_LABELS === "object") ? window.OPENSTORYLINE_TOOL_LABELS :
       {};
 
     const estimatesMs =
       (cfg.estimates_ms && typeof cfg.estimates_ms === "object") ? cfg.estimates_ms :
       (cfg.estimatesMs && typeof cfg.estimatesMs === "object") ? cfg.estimatesMs :
+      (window.KOKOMO_TOOL_ESTIMATES && typeof window.KOKOMO_TOOL_ESTIMATES === "object") ? window.KOKOMO_TOOL_ESTIMATES :
       (window.OPENSTORYLINE_TOOL_ESTIMATES && typeof window.OPENSTORYLINE_TOOL_ESTIMATES === "object") ? window.OPENSTORYLINE_TOOL_ESTIMATES :
       {};
 
@@ -1177,7 +1226,7 @@ class ChatUI {
       if (typeof hit === "string") return String(hit);
 
       if (hit && typeof hit === "object") {
-        const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+        const lang = __osCurrentLang();
         const v = hit[lang] ?? hit.zh ?? hit.en;
         if (v != null) return String(v);
       }
@@ -1982,7 +2031,7 @@ class ChatUI {
       return;
     }
 
-    const lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+    const lang = __osCurrentLang();
 
     let key = "";
     try {
@@ -2377,7 +2426,7 @@ class App {
     this.uploading = false;
 
     this.langToggle = $("#langToggle");
-    this.lang = __osNormLang(window.OPENSTORYLINE_LANG || "zh");
+    this.lang = __osCurrentLang();
 
     this._langWasStored = (__osLoadLang() != null);
 
@@ -2397,14 +2446,14 @@ class App {
     await this.loadTtsUiSchema();
 
     // 复用 localStorage session；如果失效就创建新 session
-    const saved = localStorage.getItem("openstoryline_session_id");
+    const saved = __osLoadSessionId();
     if (saved) {
       try {
         const snap = await this.api.getSession(saved);
         await this.useSession(saved, snap);
         return;
       } catch {
-        localStorage.removeItem("openstoryline_session_id");
+        __osClearSessionId();
       }
     }
 
@@ -3176,7 +3225,7 @@ class App {
     this.applySnapshotLimits(snapshot);
     this.applySnapshotModels(snapshot);
 
-    localStorage.setItem("openstoryline_session_id", sessionId);
+    __osSaveSessionId(sessionId);
 
     this.setDeveloperMode(!!snapshot.developer_mode);
 
@@ -3493,7 +3542,8 @@ new App().bootstrap();
    ========================================================= */
 
 const __OS_PERSIST_STORAGE = window.sessionStorage; // <- 改成 localStorage 即可“关浏览器也还在”
-const __OS_PERSIST_KEY = "openstoryline_user_config_v1";
+const __OS_PERSIST_KEY = "kokomo_user_config_v1";
+const __OS_PERSIST_KEY_LEGACY = "openstoryline_user_config_v1";
 
 function __osSafeParseJson(s, fallback) {
   try {
@@ -3505,12 +3555,14 @@ function __osSafeParseJson(s, fallback) {
 }
 
 function __osLoadConfig() {
-  return __osSafeParseJson(__OS_PERSIST_STORAGE.getItem(__OS_PERSIST_KEY), {});
+  const raw = __osGetStorageWithLegacy(__OS_PERSIST_STORAGE, __OS_PERSIST_KEY, __OS_PERSIST_KEY_LEGACY);
+  return __osSafeParseJson(raw, {});
 }
 
 function __osSaveConfig(cfg) {
   try {
     __OS_PERSIST_STORAGE.setItem(__OS_PERSIST_KEY, JSON.stringify(cfg || {}));
+    __OS_PERSIST_STORAGE.removeItem(__OS_PERSIST_KEY_LEGACY);
   } catch (e) {
     console.warn("[persist] save failed:", e);
   }
@@ -3643,6 +3695,7 @@ function __osBindPersistedFields(root = document) {
     getConfig: () => (cfg = __osLoadConfig()),
     clear: () => {
       __OS_PERSIST_STORAGE.removeItem(__OS_PERSIST_KEY);
+      __OS_PERSIST_STORAGE.removeItem(__OS_PERSIST_KEY_LEGACY);
       cfg = {};
     },
     saveNow: () => __osSaveConfig(cfg),
@@ -3651,7 +3704,9 @@ function __osBindPersistedFields(root = document) {
 
 function __osInitPersistSidebarConfig() {
   __osHydratePersistedFields(document);
-  window.OPENSTORYLINE_PERSIST = __osBindPersistedFields(document); // 可选：调试用
+  const persist = __osBindPersistedFields(document);
+  window.KOKOMO_PERSIST = persist; // 新命名
+  window.OPENSTORYLINE_PERSIST = persist; // 兼容旧命名
 }
 
 if (document.readyState === "loading") {
