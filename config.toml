@@ -60,6 +60,7 @@ available_node_pkgs = [
 ]
 available_nodes = [
     "LoadMediaNode", "SearchMediaNode", "SplitShotsNode",
+    "AnalyzeMotionEnergyNode", "AnalyzeBeatRhythmNode", "AnalyzeAudioEnergyNode",
     "UnderstandClipsNode", "FilterClipsNode", "GroupClipsNode", "GenerateScriptNode", "ScriptTemplateRecomendation",
     "GenerateVoiceoverNode", "SelectBGMNode", "RecommendTransitionNode", "RecommendTextNode",
     "PlanTimelineProNode", "RenderVideoNode"

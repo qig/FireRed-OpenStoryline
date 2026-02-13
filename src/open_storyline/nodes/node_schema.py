@@ -451,3 +451,109 @@ class RenderVideoInput(BaseInput):
         default=False,
         description="Whether to include the original video audio track"
     )]
+
+
+class AnalyzeMotionEnergyInput(BaseInput):
+    mode: Literal["auto", "skip", "default"] = Field(
+        default="auto",
+        description="auto: Analyze per-clip motion energy; skip: do not run analysis; default: run with defaults",
+    )
+    flow_method: Literal["farneback", "dis"] = Field(
+        default="farneback",
+        description="Optical-flow backend used for motion scoring",
+    )
+    resize_width: Annotated[int, Field(
+        default=480,
+        ge=64,
+        le=1920,
+        description="Resize width used during optical-flow analysis",
+    )]
+    frame_skip: Annotated[int, Field(
+        default=1,
+        ge=1,
+        le=8,
+        description="Analyze every N-th frame pair to trade precision for speed",
+    )]
+    max_clips: Annotated[int, Field(
+        default=0,
+        ge=0,
+        description="Maximum number of video clips to analyze; 0 means all available clips",
+    )]
+
+
+class AnalyzeBeatRhythmInput(BaseInput):
+    mode: Literal["auto", "skip", "default"] = Field(
+        default="auto",
+        description="auto: Analyze beat/rhythm from each clip's audio; skip: do not run analysis; default: run with defaults",
+    )
+    sample_rate: Annotated[int, Field(
+        default=22050,
+        ge=8000,
+        le=96000,
+        description="Audio sample rate used for beat analysis",
+    )]
+    start_bpm: Annotated[float, Field(
+        default=120.0,
+        gt=0.0,
+        le=320.0,
+        description="Prior BPM used by beat tracking",
+    )]
+    tightness: Annotated[float, Field(
+        default=100.0,
+        gt=0.0,
+        le=1000.0,
+        description="Higher values enforce stricter tempo-grid beat placement",
+    )]
+    beats_per_bar: Annotated[int, Field(
+        default=4,
+        ge=2,
+        le=12,
+        description="Expected beats per bar for downbeat estimation",
+    )]
+    max_points: Annotated[int, Field(
+        default=120,
+        ge=16,
+        le=800,
+        description="Maximum points returned for beat/trigger series in each clip",
+    )]
+    max_clips: Annotated[int, Field(
+        default=0,
+        ge=0,
+        description="Maximum number of video clips to analyze; 0 means all available clips",
+    )]
+
+
+class AnalyzeAudioEnergyInput(BaseInput):
+    mode: Literal["auto", "skip", "default"] = Field(
+        default="auto",
+        description="auto: Analyze RMS/low/high band energy from each clip's audio; skip: do not run analysis; default: run with defaults",
+    )
+    sample_rate: Annotated[int, Field(
+        default=22050,
+        ge=8000,
+        le=96000,
+        description="Audio sample rate used for energy analysis",
+    )]
+    n_fft: Annotated[int, Field(
+        default=2048,
+        ge=256,
+        le=8192,
+        description="FFT window size for spectral energy analysis",
+    )]
+    hop_length: Annotated[int, Field(
+        default=512,
+        ge=64,
+        le=4096,
+        description="Hop length for frame-wise energy curves",
+    )]
+    max_points: Annotated[int, Field(
+        default=120,
+        ge=16,
+        le=800,
+        description="Maximum points returned for each energy curve",
+    )]
+    max_clips: Annotated[int, Field(
+        default=0,
+        ge=0,
+        description="Maximum number of video clips to analyze; 0 means all available clips",
+    )]
