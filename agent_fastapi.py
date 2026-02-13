@@ -95,12 +95,21 @@ def _env_fallback_for_model(model_name: str) -> Tuple[str, str]:
     """
     - deepseek* -> DEEPSEEK_API_URL / DEEPSEEK_API_KEY
     - qwen3*  -> QWEN3_VL_8B_API_URL / QWEN3_VL_8B_API_KEY
+    - default -> OPENROUTER_API_URL(or OPENROUTER_BASE_URL) / OPENROUTER_API_KEY
     """
     m = _s(model_name).lower()
     if "deepseek" in m:
         return (_s(os.getenv("DEEPSEEK_API_URL")), _s(os.getenv("DEEPSEEK_API_KEY")))
     if m.startswith("qwen3-vl-8b-instruct") or "qwen3-vl-8b-instruct" in m:
         return (_s(os.getenv("QWEN3_VL_8B_API_URL")), _s(os.getenv("QWEN3_VL_8B_API_KEY")))
+    openrouter_key = _s(os.getenv("OPENROUTER_API_KEY"))
+    if openrouter_key:
+        openrouter_url = _norm_url(
+            os.getenv("OPENROUTER_API_URL")
+            or os.getenv("OPENROUTER_BASE_URL")
+            or "https://openrouter.ai/api/v1"
+        )
+        return (openrouter_url, openrouter_key)
     return ("", "")
 
 def _resolve_default_model_override(cfg: Settings, model_name: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
@@ -145,7 +154,8 @@ def _resolve_default_model_override(cfg: Settings, model_name: str) -> Tuple[Opt
         return None, (
             f"cannot find base_url/api_key of default model: {model_name}. "
             f"please fill in base_url/api_key of [developer.chat_models_config.\"{model_name}\" in config.toml]"
-            f"or set environment variables（DEEPSEEK_API_URL/DEEPSEEK_API_KEY / QWEN3_VL_8B_API_URL/QWEN3_VL_8B_API_KEY）。"
+            f"or set environment variables（DEEPSEEK_API_URL/DEEPSEEK_API_KEY / "
+            f"QWEN3_VL_8B_API_URL/QWEN3_VL_8B_API_KEY / OPENROUTER_API_URL/OPENROUTER_API_KEY）。"
         )
 
     return override, None

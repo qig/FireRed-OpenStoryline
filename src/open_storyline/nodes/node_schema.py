@@ -401,8 +401,10 @@ class RenderVideoInput(BaseInput):
         "'padding' keeps aspect ratio and fills empty areas with a solid color; " \
         "'crop' center-crops media to match the canvas aspect ratio."
     )]
-    bg_color: Annotated[Tuple[int] | List[int] | None, Field(
-        default=(0, 0, 0),
+    bg_color: Annotated[List[int] | None, Field(
+        default=[0, 0, 0],
+        min_length=3,
+        max_length=3,
         description="Background color for canvas padding, specified as an (R, G, B) tuple (no alpha channel)."
     )]
     crf: Annotated[int, Field(
@@ -411,8 +413,10 @@ class RenderVideoInput(BaseInput):
     )]
 
     # font parameters
-    font_color: Annotated[Tuple[int, int, int, int], Field(
-        default=(255, 255, 255, 255), 
+    font_color: Annotated[List[int], Field(
+        default=[255, 255, 255, 255],
+        min_length=4,
+        max_length=4,
         description="Font color, RGBA format (R, G, B, A), values range 0-255")
     ]
     font_size: Annotated[int, Field(
@@ -427,8 +431,10 @@ class RenderVideoInput(BaseInput):
         default=2,
         description="Text stroke width (px), typically 0–8"
     )]
-    stroke_color: Annotated[Tuple[int, int, int, int], Field(
-        default=(0, 0, 0, 255), 
+    stroke_color: Annotated[List[int], Field(
+        default=[0, 0, 0, 255],
+        min_length=4,
+        max_length=4,
         description="Text stroke color in RGBA format",
     )]
 
@@ -445,4 +451,3 @@ class RenderVideoInput(BaseInput):
         default=False,
         description="Whether to include the original video audio track"
     )]
-
