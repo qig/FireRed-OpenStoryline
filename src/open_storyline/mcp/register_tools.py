@@ -1,8 +1,11 @@
 from __future__ import annotations
 from dataclasses import asdict
+from pathlib import Path
 from typing import Annotated
 from pydantic import BaseModel, Field
 import inspect
+import os
+import sys
 import traceback
 
 from open_storyline.config import Settings
@@ -17,6 +20,67 @@ from src.open_storyline.storage.agent_memory import ArtifactStore
 
 from mcp.server.fastmcp import Context, FastMCP
 from mcp.server.session import ServerSession
+
+
+def _find_kokomo_project_root() -> Path | None:
+    """
+    Discover project root that contains kokomo/config.toml.
+    """
+    starts: list[Path] = []
+
+    env_root = os.getenv("KOKOMO_PROJECT_ROOT", "").strip()
+    if env_root:
+        starts.append(Path(env_root).expanduser().resolve())
+
+    starts.append(Path.cwd().resolve())
+    starts.append(Path(__file__).resolve())
+
+    for start in starts:
+        cursor = start if start.is_dir() else start.parent
+        for candidate in [cursor, *cursor.parents]:
+            if (candidate / "kokomo" / "config.toml").exists():
+                return candidate
+    return None
+
+
+def _resolve_node_catalog_with_kokomo(cfg: Settings) -> tuple[list[str], list[str]]:
+    default_pkgs = [str(x) for x in (cfg.local_mcp_server.available_node_pkgs or []) if str(x).strip()]
+    default_nodes = [str(x) for x in (cfg.local_mcp_server.available_nodes or []) if str(x).strip()]
+
+    project_root = _find_kokomo_project_root()
+    if project_root is None:
+        return default_pkgs, default_nodes
+
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
+
+    try:
+        from kokomo.core.runtime_bridge import resolve_node_catalog
+    except Exception as e:
+        print(f"[Kokomo Bridge] import failed, fallback to OpenStoryline config: {e}")
+        return default_pkgs, default_nodes
+
+    cfg_path = Path(
+        os.getenv("KOKOMO_CONFIG", str(project_root / "kokomo" / "config.toml"))
+    ).expanduser().resolve()
+
+    try:
+        contribution, diagnostics = resolve_node_catalog(
+            config_path=cfg_path,
+            project_root=project_root,
+        )
+        for item in diagnostics:
+            print(f"[Kokomo Bridge] {item}")
+
+        node_pkgs = contribution.node_packages or default_pkgs
+        nodes = contribution.available_nodes or default_nodes
+        if node_pkgs != default_pkgs or nodes != default_nodes:
+            print("[Kokomo Bridge] using Kokomo plugin node catalog")
+        return node_pkgs, nodes
+    except Exception as e:
+        print(f"[Kokomo Bridge] resolve failed, fallback to OpenStoryline config: {e}")
+        return default_pkgs, default_nodes
+
 
 def create_tool_wrapper(node: BaseNode, input_schema: type[BaseModel]):
     """
@@ -90,11 +154,23 @@ def create_tool_wrapper(node: BaseNode, input_schema: type[BaseModel]):
 
 
 def register(server: FastMCP, cfg: Settings) -> None:
+    node_packages, available_nodes = _resolve_node_catalog_with_kokomo(cfg)
 
     # scan node packages
-    for pkg in cfg.local_mcp_server.available_node_pkgs:
+    for pkg in node_packages:
         NODE_REGISTRY.scan_package(pkg)
-    all_node_classes = [NODE_REGISTRY.get(name=node_name) for node_name in cfg.local_mcp_server.available_nodes]
+
+    all_node_classes = []
+    missing_node_classes = []
+    for node_name in available_nodes:
+        node_cls = NODE_REGISTRY.get(name=node_name)
+        if node_cls is None:
+            missing_node_classes.append(node_name)
+            continue
+        all_node_classes.append(node_cls)
+
+    if missing_node_classes:
+        print(f"[Kokomo Bridge] missing node classes: {missing_node_classes}")
 
     for NodeClass in all_node_classes:
         node_instance = NodeClass(cfg)
